@@ -1,0 +1,351 @@
+// KasaCart database schema — implements docs/database-schema.md
+// Postgres (Neon) + Prisma 7 (driver adapter @prisma/adapter-pg).
+//
+// Conventions (see the doc):
+//  - uuid PKs via gen_random_uuid()
+//  - every store-scoped table carries store_id (indexed)
+//  - money stored as integer pesewas (1 GHS = 100 pesewas), columns *_pesewas
+//  - created_at/updated_at timestamptz; updated_at via Prisma @updatedAt
+//  - emails / store handle are case-insensitive (citext)
+
+generator client {
+  provider        = "prisma-client"
+  output          = "../src/generated/prisma"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  // Connection comes from prisma.config.ts (CLI/migrations use DIRECT_URL).
+  // The app's PrismaClient connects at runtime via the pg driver adapter.
+  extensions = [pgcrypto, citext]
+}
+
+/* ----------------------------------------------------------------- */
+/* Enums                                                             */
+/* ----------------------------------------------------------------- */
+
+/// Dashboard "New" and Orders "Pending" both map to `pending`.
+enum OrderStatus {
+  pending
+  confirmed
+  packed
+  delivered
+  cancelled
+
+  @@map("order_status")
+}
+
+enum PaymentMethod {
+  cash_on_delivery
+  mobile_money
+  bank_transfer
+
+  @@map("payment_method")
+}
+
+enum PaymentStatus {
+  unpaid
+  paid
+  refunded
+
+  @@map("payment_status")
+}
+
+enum SalesChannel {
+  storefront
+  whatsapp
+  instagram
+  tiktok
+  facebook
+  snapchat
+
+  @@map("sales_channel")
+}
+
+enum ContactMethod {
+  phone
+  email
+
+  @@map("contact_method")
+}
+
+enum PlanTier {
+  free
+  pro
+
+  @@map("plan_tier")
+}
+
+enum SubscriptionStatus {
+  active
+  past_due
+  cancelled
+
+  @@map("subscription_status")
+}
+
+/* ----------------------------------------------------------------- */
+/* Models                                                            */
+/* ----------------------------------------------------------------- */
+
+/// Seller / account owner — linked to a Clerk identity.
+model User {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  clerkUserId String   @unique @map("clerk_user_id")
+  email       String   @unique @db.Citext
+  fullName    String?  @map("full_name")
+  avatarUrl   String?  @map("avatar_url")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  stores Store[]
+
+  @@map("users")
+}
+
+/// A seller's storefront + brand. `handle` powers /store/<handle>.
+model Store {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  ownerId       String   @map("owner_id") @db.Uuid
+  name          String
+  handle        String   @unique @db.Citext
+  tagline       String?
+  accentColor   String   @default("#1d4ed8") @map("accent_color")
+  logoUrl       String?  @map("logo_url")
+  bannerUrl     String?  @map("banner_url")
+  whatsappPhone String?  @map("whatsapp_phone")
+  supportPhone  String?  @map("support_phone")
+  location      String?
+  currencyCode  String   @default("GHS") @map("currency_code") @db.Char(3)
+  isPublished   Boolean  @default(true) @map("is_published")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  owner                   User                     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  notificationPreferences NotificationPreferences?
+  subscription            Subscription?
+  invoices                Invoice[]
+  categories              Category[]
+  products                Product[]
+  customers               Customer[]
+  orders                  Order[]
+
+  @@index([ownerId])
+  @@map("stores")
+}
+
+/// Settings → Notifications toggles. One row per store.
+model NotificationPreferences {
+  storeId           String   @id @map("store_id") @db.Uuid
+  newOrder          Boolean  @default(true) @map("new_order")
+  lowStock          Boolean  @default(true) @map("low_stock")
+  newCustomer       Boolean  @default(false) @map("new_customer")
+  weeklySummary     Boolean  @default(false) @map("weekly_summary")
+  lowStockThreshold Int      @default(5) @map("low_stock_threshold")
+  updatedAt         DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@map("notification_preferences")
+}
+
+/// Billing & plan (Free / Pro). One row per store.
+model Subscription {
+  id                 String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  storeId            String             @unique @map("store_id") @db.Uuid
+  plan               PlanTier           @default(free)
+  status             SubscriptionStatus @default(active)
+  pricePesewas       Int                @default(0) @map("price_pesewas")
+  currentPeriodStart DateTime?          @map("current_period_start") @db.Date
+  currentPeriodEnd   DateTime?          @map("current_period_end") @db.Date
+  createdAt          DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime           @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  store    Store     @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  invoices Invoice[]
+
+  @@map("subscriptions")
+}
+
+/// Billing history rows.
+model Invoice {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  storeId        String    @map("store_id") @db.Uuid
+  subscriptionId String?   @map("subscription_id") @db.Uuid
+  amountPesewas  Int       @map("amount_pesewas")
+  currencyCode   String    @default("GHS") @map("currency_code") @db.Char(3)
+  status         String    @default("paid")
+  issuedAt       DateTime  @default(now()) @map("issued_at") @db.Timestamptz(6)
+  paidAt         DateTime? @map("paid_at") @db.Timestamptz(6)
+
+  store        Store         @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  subscription Subscription? @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
+
+  @@index([storeId, issuedAt(sort: Desc)])
+  @@map("invoices")
+}
+
+/// Per-store product category (seeded with the default list).
+model Category {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  storeId   String   @map("store_id") @db.Uuid
+  name      String
+  position  Int      @default(0)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  store    Store     @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  products Product[]
+
+  @@unique([storeId, name])
+  @@index([storeId])
+  @@map("categories")
+}
+
+/// A product. Priced by `basePricePesewas` or entirely by its variants.
+model Product {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  storeId          String   @map("store_id") @db.Uuid
+  categoryId       String?  @map("category_id") @db.Uuid
+  name             String
+  description      String?
+  basePricePesewas Int?     @map("base_price_pesewas")
+  stock            Int      @default(0)
+  sold             Int      @default(0)
+  color            String?
+  imageUrl         String?  @map("image_url")
+  isActive         Boolean  @default(true) @map("is_active")
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  store      Store            @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  category   Category?        @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  variants   ProductVariant[]
+  orderItems OrderItem[]
+
+  @@unique([storeId, name])
+  @@index([storeId])
+  @@index([storeId, categoryId])
+  @@index([storeId, isActive])
+  @@map("products")
+}
+
+/// Size / measurement option with its own price.
+model ProductVariant {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  productId    String   @map("product_id") @db.Uuid
+  size         String
+  pricePesewas Int      @map("price_pesewas")
+  position     Int      @default(0)
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  product    Product     @relation(fields: [productId], references: [id], onDelete: Cascade)
+  orderItems OrderItem[]
+
+  @@unique([productId, size])
+  @@index([productId])
+  @@map("product_variants")
+}
+
+/// A shopper for a given store. Order counts / spend are computed (views).
+model Customer {
+  id               String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  storeId          String         @map("store_id") @db.Uuid
+  firstName        String?        @map("first_name")
+  lastName         String?        @map("last_name")
+  email            String?        @db.Citext
+  phone            String?
+  preferredContact ContactMethod? @map("preferred_contact")
+  address          String?
+  city             String?
+  region           String?
+  color            String?
+  createdAt        DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  store  Store   @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  orders Order[]
+
+  // NULLs are distinct in Postgres unique indexes, so these allow many
+  // customers without a phone/email while keeping known ones unique per store.
+  @@unique([storeId, phone])
+  @@unique([storeId, email])
+  @@index([storeId])
+  @@map("customers")
+}
+
+/// The central transaction. Contact + delivery are snapshotted onto the order.
+model Order {
+  id                 String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  storeId            String         @map("store_id") @db.Uuid
+  customerId         String?        @map("customer_id") @db.Uuid
+  orderNumber        String         @map("order_number")
+  status             OrderStatus    @default(pending)
+  channel            SalesChannel   @default(storefront)
+  paymentMethod      PaymentMethod? @map("payment_method")
+  paymentStatus      PaymentStatus  @default(unpaid) @map("payment_status")
+  subtotalPesewas    Int            @default(0) @map("subtotal_pesewas")
+  deliveryFeePesewas Int            @default(0) @map("delivery_fee_pesewas")
+  totalPesewas       Int            @default(0) @map("total_pesewas")
+  currencyCode       String         @default("GHS") @map("currency_code") @db.Char(3)
+  customerName       String?        @map("customer_name")
+  customerPhone      String?        @map("customer_phone")
+  customerEmail      String?        @map("customer_email")
+  deliveryAddress    String?        @map("delivery_address")
+  deliveryCity       String?        @map("delivery_city")
+  deliveryRegion     String?        @map("delivery_region")
+  notes              String?
+  placedAt           DateTime       @default(now()) @map("placed_at") @db.Timestamptz(6)
+  createdAt          DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  store        Store              @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  customer     Customer?          @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  items        OrderItem[]
+  statusEvents OrderStatusEvent[]
+
+  @@unique([storeId, orderNumber])
+  @@index([storeId])
+  @@index([storeId, status])
+  @@index([storeId, placedAt(sort: Desc)])
+  @@index([customerId])
+  @@map("orders")
+}
+
+/// Line item — snapshots name / size / unit price at purchase time.
+/// NOTE: the doc's `line_total_pesewas` is a Postgres GENERATED column.
+/// Prisma can't manage generated columns, so the app sets it (unitPrice * qty).
+model OrderItem {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orderId          String   @map("order_id") @db.Uuid
+  productId        String?  @map("product_id") @db.Uuid
+  variantId        String?  @map("variant_id") @db.Uuid
+  productName      String   @map("product_name")
+  size             String?
+  unitPricePesewas Int      @map("unit_price_pesewas")
+  quantity         Int
+  lineTotalPesewas Int      @map("line_total_pesewas")
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  order   Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product Product?        @relation(fields: [productId], references: [id], onDelete: SetNull)
+  variant ProductVariant? @relation(fields: [variantId], references: [id], onDelete: SetNull)
+
+  @@index([orderId])
+  @@index([productId])
+  @@map("order_items")
+}
+
+/// Fulfilment timeline — powers avg. fulfilment time + order history.
+model OrderStatusEvent {
+  id        String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orderId   String      @map("order_id") @db.Uuid
+  status    OrderStatus
+  note      String?
+  changedAt DateTime    @default(now()) @map("changed_at") @db.Timestamptz(6)
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId, changedAt])
+  @@map("order_status_events")
+}

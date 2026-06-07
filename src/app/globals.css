@@ -1,26 +1,154 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #f5f8ff;
+  --foreground: #0a1430;
+
+  /* semantic surfaces & text (flip under .dark) */
+  --c-canvas: #ffffff;
+  --c-surface: #ffffff;
+  --c-raised: #eff4ff;
+  --c-fg: #060d24;
+  --c-feature: #060d24;
+  --c-border: rgba(29, 78, 216, 0.1);
+  --c-shadow: 0 1px 2px rgba(10, 28, 77, 0.04), 0 14px 30px -22px rgba(10, 28, 77, 0.22);
+}
+
+.dark {
+  --c-canvas: #0a0f1e;
+  --c-surface: #131b2f;
+  --c-raised: #1a2238;
+  --c-fg: #e8edf7;
+  --c-feature: #1b2540;
+  --c-border: rgba(255, 255, 255, 0.08);
+  --c-shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 18px 36px -24px rgba(0, 0, 0, 0.6);
 }
 
 @theme inline {
+  /* Blue-dominant palette */
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+
+  --color-ink: #060d24;
+  --color-navy: #0a1c4d;
+  --color-brand-700: #1535b3;
+  --color-brand: #1d4ed8;
+  --color-brand-600: #2563eb;
+  --color-brand-400: #60a5fa;
+  --color-brand-200: #bfdbfe;
+  --color-sky: #eff4ff;
+  --color-cyan: #22d3ee;
+
+  /* semantic (theme-aware) */
+  --color-canvas: var(--c-canvas);
+  --color-surface: var(--c-surface);
+  --color-raised: var(--c-raised);
+  --color-fg: var(--c-fg);
+  --color-feature: var(--c-feature);
+
+  --font-display: var(--font-display);
+  --font-sans: var(--font-body);
+  --font-mono: var(--font-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+* {
+  border-color: color-mix(in oklab, var(--color-brand) 14%, transparent);
+}
+
+html {
+  scroll-behavior: smooth;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-body), system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: var(--color-brand);
+  color: #fff;
+}
+
+/* ---------- Portal primitives (theme-aware) ---------- */
+.surface {
+  background-color: var(--c-surface);
+  border: 1px solid var(--c-border);
+  box-shadow: var(--c-shadow);
+}
+
+.input {
+  width: 100%;
+  border-radius: 0.75rem;
+  border: 1px solid color-mix(in oklab, var(--color-brand) 22%, transparent);
+  background-color: var(--c-surface);
+  padding: 0.625rem 0.875rem;
+  font-size: 0.9rem;
+  color: var(--c-fg);
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.input::placeholder {
+  color: color-mix(in oklab, var(--c-fg) 42%, transparent);
+}
+.input:focus {
+  border-color: var(--color-brand);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--color-brand) 16%, transparent);
+}
+
+/* ---------- Auto carousel (marquee) ---------- */
+@keyframes marquee {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+.marquee-track {
+  display: flex;
+  width: max-content;
+  animation: marquee 32s linear infinite;
+}
+.marquee-track:hover {
+  animation-play-state: paused;
+}
+.marquee-mask {
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 7%, #000 93%, transparent);
+  mask-image: linear-gradient(to right, transparent, #000 7%, #000 93%, transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .marquee-track {
+    animation: none;
+  }
+}
+
+/* ---------- Skeleton shimmer (theme-aware) ---------- */
+@keyframes skeleton-shimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  background-color: color-mix(in oklab, var(--color-brand) 9%, var(--c-surface));
+}
+.skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in oklab, var(--c-fg) 7%, transparent),
+    transparent
+  );
+  animation: skeleton-shimmer 1.6s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .skeleton::after {
+    animation: none;
+  }
 }
