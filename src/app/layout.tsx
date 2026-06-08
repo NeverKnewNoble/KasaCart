@@ -22,7 +22,7 @@ const mono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "KasaCart — A storefront and order dashboard for social sellers",
+  title: "KasaCart",
   description:
     "KasaCart gives social sellers a storefront customers order from, plus one dashboard to track and fulfil every order. Sell on WhatsApp, Instagram and TikTok without losing track.",
 };

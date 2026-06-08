@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Copy, ExternalLink, Palette, Upload, Check, Monitor, Smartphone, Image as ImageIcon, ShoppingBag, Plus, Pipette } from "lucide-react";
 import PageHeader from "@/components/ui_components/portal/PageHeader";
+import StorefrontSkeleton from "@/components/ui_components/StorefrontSkeleton";
 import { storefrontThemes as themes, previewProducts } from "@/utils/SampleDate";
 import { buildStoreUrl, storeDisplayUrl, useCurrentHost } from "@/utils/domain";
 import Storefront from "@/services/storefront";
@@ -12,29 +13,34 @@ import type { StoreBrand } from "@/types/storefront"
 
 
 export default function StorefrontPage() {
-  const [name, setName] = useState("Adwoa's Closet");
-  const [tagline, setTagline] = useState("Affordable fashion, delivered across Accra");
-  const [handle, setHandle] = useState("adwoascloset");
+  const [name, setName] = useState("");
+  const [tagline, setTagline] = useState("");
+  const [handle, setHandle] = useState("");
   const [accent, setAccent] = useState(themes[0]);
   const [logo, setLogo] = useState<string | null>(null);
   const [banner, setBanner] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   // Load the seller's store into the form.
   useEffect(() => {
     (async () => {
-      const store = await Storefront.getStore();
-      if (!store) {
-        toast.error("Couldn't load your store.");
-        return;
+      try {
+        const store = await Storefront.getStore();
+        if (!store) {
+          toast.error("Couldn't load your store.");
+          return;
+        }
+        setName(store.name);
+        setTagline(store.tagline ?? "");
+        setHandle(store.handle);
+        setAccent(store.accentColor);
+        setLogo(store.logoUrl);
+        setBanner(store.bannerUrl);
+      } finally {
+        setLoading(false);
       }
-      setName(store.name);
-      setTagline(store.tagline ?? "");
-      setHandle(store.handle);
-      setAccent(store.accentColor);
-      setLogo(store.logoUrl);
-      setBanner(store.bannerUrl);
     })();
   }, []);
 
@@ -90,7 +96,8 @@ export default function StorefrontPage() {
   };
 
 
-  
+  if (loading) return <StorefrontSkeleton />;
+
   return (
     <div className="space-y-6">
       <PageHeader
