@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
-import { UserButton, useUser } from "@clerk/nextjs";
+import { useSession, signOut } from "next-auth/react";
 import {
   LayoutDashboard,
   ShoppingBag,
@@ -19,6 +19,7 @@ import {
   X,
   Moon,
   Sun,
+  LogOut,
   PanelLeftClose,
   PanelLeftOpen,
   type LucideIcon,
@@ -90,21 +91,33 @@ function NavLinks({
 }
 
 function AccountBlock({ collapsed }: { collapsed: boolean }) {
-  const { user } = useUser();
-  const email = user?.primaryEmailAddress?.emailAddress ?? "";
-  const name = user?.fullName || user?.username || "Your account";
+  const { data: session } = useSession();
+  const email = session?.user?.email ?? "";
+  const name = session?.user?.name || "Your account";
+  const image = session?.user?.image ?? null;
+
+  const avatar = (
+    <span className="grid h-8 w-8 shrink-0 place-items-center overflow-hidden rounded-full bg-brand text-xs font-bold text-white">
+      {image ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={image} alt="" className="h-full w-full object-cover" />
+      ) : (
+        (name.trim()[0] ?? "U").toUpperCase()
+      )}
+    </span>
+  );
 
   if (collapsed) {
     return (
       <div className="flex justify-center" title={email || name}>
-        <UserButton appearance={{ elements: { avatarBox: "h-8 w-8" } }} />
+        {avatar}
       </div>
     );
   }
 
   return (
     <div className="flex items-center gap-3 rounded-xl border border-brand/10 bg-surface px-3 py-2.5">
-      <UserButton appearance={{ elements: { avatarBox: "h-8 w-8" } }} />
+      {avatar}
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-semibold text-fg">{name}</p>
         <p className="truncate text-xs text-fg/50">{email}</p>
@@ -219,6 +232,13 @@ function SidebarBody({
           title="View storefront"
         />
         <AccountBlock collapsed={collapsed} />
+        <FooterButton
+          collapsed={collapsed}
+          label="Sign out"
+          icon={LogOut}
+          onClick={() => signOut({ callbackUrl: "/" })}
+          title="Sign out"
+        />
       </div>
     </div>
   );

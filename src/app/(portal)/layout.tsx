@@ -1,5 +1,5 @@
-import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
+import { auth } from "@/auth";
 import PortalShell from "@/components/ui_components/portal/PortalShell";
 
 export default async function PortalLayout({
@@ -7,8 +7,8 @@ export default async function PortalLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const { userId } = await auth();
-  if (!userId) redirect("/auth/login");
+  const session = await auth();
+  if (!session?.user) redirect("/auth/login");
 
   return <PortalShell>{children}</PortalShell>;
 }

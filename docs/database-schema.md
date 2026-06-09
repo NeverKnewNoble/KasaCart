@@ -128,14 +128,16 @@ CREATE TYPE subscription_status AS ENUM ('active', 'past_due', 'cancelled');
 
 ### 4.1 `users` — sellers / account owners
 
-Backs Clerk-authenticated accounts. Clerk remains the source of truth for credentials;
-this row links the Clerk identity to KasaCart data.
+Backs NextAuth (Auth.js) accounts. `password_hash` holds a bcrypt hash for
+email+password accounts and is null for Google-only sign-ins. `role` is `USER`
+by default; admins are promoted manually.
 
 ```sql
 CREATE TABLE users (
   id             uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  clerk_user_id  text NOT NULL UNIQUE,           -- Clerk user id
   email          citext NOT NULL UNIQUE,
+  password_hash  text,                            -- bcrypt; null for Google-only
+  role           user_role NOT NULL DEFAULT 'USER', -- enum: ADMIN | USER
   full_name      text,
   avatar_url     text,
   created_at     timestamptz NOT NULL DEFAULT now(),

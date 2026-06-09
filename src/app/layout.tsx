@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
-import { ClerkProvider } from "@clerk/nextjs";
 import { Bricolage_Grotesque, Hanken_Grotesk, Geist_Mono } from "next/font/google";
 import { Toaster } from "@/components/ui/sonner";
+import AuthSessionProvider from "@/components/providers/SessionProvider";
 import "./globals.css";
 
 const display = Bricolage_Grotesque({
@@ -38,13 +38,7 @@ export default function RootLayout({
       className={`${display.variable} ${body.variable} ${mono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col bg-background text-foreground">
-        <ClerkProvider
-          signInUrl="/auth/login"
-          signUpUrl="/auth/signup"
-          afterSignOutUrl="/"
-        >
-          {children}
-        </ClerkProvider>
+        <AuthSessionProvider>{children}</AuthSessionProvider>
         <Toaster />
       </body>
     </html>

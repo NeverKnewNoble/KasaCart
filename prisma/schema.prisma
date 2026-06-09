@@ -85,19 +85,29 @@ enum SubscriptionStatus {
   @@map("subscription_status")
 }
 
+/// Account role. New sign-ups default to `USER`; admins are promoted manually.
+enum UserRole {
+  ADMIN
+  USER
+
+  @@map("user_role")
+}
+
 /* ----------------------------------------------------------------- */
 /* Models                                                            */
 /* ----------------------------------------------------------------- */
 
-/// Seller / account owner — linked to a Clerk identity.
+/// Seller / account owner — authenticated via NextAuth (Auth.js).
+/// `passwordHash` is null for accounts that only sign in with Google.
 model User {
-  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  clerkUserId String   @unique @map("clerk_user_id")
-  email       String   @unique @db.Citext
-  fullName    String?  @map("full_name")
-  avatarUrl   String?  @map("avatar_url")
-  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email        String   @unique @db.Citext
+  passwordHash String?  @map("password_hash")
+  role         UserRole @default(USER)
+  fullName     String?  @map("full_name")
+  avatarUrl    String?  @map("avatar_url")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   stores Store[]
 

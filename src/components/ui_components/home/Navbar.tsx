@@ -1,6 +1,6 @@
-import { Show, UserButton } from "@clerk/nextjs";
 import Link from "next/link";
 import { navLinks as links } from "@/utils/SampleDate";
+import NavAuth from "./NavAuth";
 
 export default function Navbar() {
   return (
@@ -28,40 +28,7 @@ export default function Navbar() {
 
         {/* auth */}
         <div className="flex shrink-0 items-center gap-2.5">
-          <Show when="signed-out">
-            <Link
-              href="/auth/login"
-              className="hidden rounded-full px-3.5 py-1.5 text-sm font-semibold text-ink/75 transition-colors hover:text-brand sm:block"
-            >
-              Sign in
-            </Link>
-            <Link
-              href="/auth/signup"
-              className="rounded-full bg-brand px-4 py-2 text-sm font-semibold text-white shadow-[0_8px_18px_-7px_rgba(29,78,216,0.9)] transition-transform hover:-translate-y-0.5"
-            >
-              Get started
-            </Link>
-          </Show>
-          <Show when="signed-in">
-            <Link
-              href="/dashboard"
-              className="rounded-full bg-brand px-4 py-2 text-sm font-semibold text-white hover:shadow-[0_8px_18px_-7px_rgba(29,78,216,0.9)] transition-transform "
-            >
-              Dashboard
-            </Link>
-            <div className="flex h-9 items-center mr-4">
-              <UserButton
-                appearance={{
-                  elements: {
-                    rootBox: "h-9",
-                    userButtonBox: "h-9",
-                    userButtonTrigger: "h-9",
-                    avatarBox: "h-9 w-9",
-                  },
-                }}
-              />
-            </div>
-          </Show>
+          <NavAuth />
         </div>
       </nav>
     </div>

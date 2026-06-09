@@ -4,9 +4,13 @@
 // Idempotent: it upserts the user/store and rebuilds the store's catalogue,
 // customers and orders on every run.
 import "dotenv/config";
+import bcrypt from "bcryptjs";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "../src/generated/prisma/client";
 import type { OrderStatus, SalesChannel } from "../src/generated/prisma/enums";
+
+// Demo login (dev only): adwoa@kasacart.demo / password123
+const DEMO_PASSWORD = "password123";
 
 const adapter = new PrismaPg({
   connectionString: process.env.DIRECT_URL ?? process.env.DATABASE_URL,
@@ -95,14 +99,16 @@ const ORDERS = [
 ] as const;
 
 async function main() {
-  // 1. Seller (Clerk-linked). Replace clerkUserId with a real id in production.
+  // 1. Seller — NextAuth credentials account. ADMIN so the role path is testable.
+  const passwordHash = await bcrypt.hash(DEMO_PASSWORD, 10);
   const user = await prisma.user.upsert({
     where: { email: "adwoa@kasacart.demo" },
-    update: {},
+    update: { passwordHash, role: "ADMIN" },
     create: {
-      clerkUserId: "seed_user_adwoa",
       email: "adwoa@kasacart.demo",
       fullName: "Adwoa Owusu",
+      passwordHash,
+      role: "ADMIN",
     },
   });
 

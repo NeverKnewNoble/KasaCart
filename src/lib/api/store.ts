@@ -1,17 +1,17 @@
 /**
- * Resolve the *current seller's store* from the Clerk session.
+ * Resolve the *current seller's store* from the NextAuth session.
  *
  * KasaCart is multi-tenant: every dashboard API is scoped to exactly one store.
- * This helper turns the Clerk identity into our `stores` row, **bootstrapping**
- * the `users` (+ `stores`, `subscriptions`, `notification_preferences`) rows on
- * first call — i.e. the "upsert on first login" the schema doc calls for
- * (see docs/database-schema.md §4.1 / §8).
+ * The signed-in user is created at sign-in by the NextAuth `jwt` callback
+ * (see src/auth.ts); this helper looks them up and **bootstraps** the `stores`
+ * (+ `subscriptions`, `notification_preferences`) rows on first call — the
+ * "upsert on first login" the schema doc calls for (docs/database-schema.md §4.1 / §8).
  *
  * Use it at the top of every authed route:
  *   const { store } = await requireStore();
  *   // ...then filter all queries by `store.id`.
  */
-import { auth, currentUser } from "@clerk/nextjs/server";
+import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { ApiError } from "./http";
 import type { Store, User } from "@/generated/prisma/client";
@@ -41,28 +41,18 @@ async function uniqueHandle(base: string): Promise<string> {
 export type CurrentStore = { userId: string; user: User; store: Store };
 
 /**
- * The signed-in seller's user + store, creating them if this is their first
- * request. Throws `ApiError(401)` if there's no Clerk session.
+ * The signed-in seller's user + store, creating the store on first request.
+ * Throws `ApiError(401)` if there's no NextAuth session.
  */
 export async function requireStore(): Promise<CurrentStore> {
-  const { userId } = await auth();
+  const session = await auth();
+  const userId = session?.user?.id;
   if (!userId) throw ApiError.unauthorized();
 
-  // 1. Ensure the `users` row exists (linked to the Clerk identity).
-  let user = await prisma.user.findUnique({ where: { clerkUserId: userId } });
-  if (!user) {
-    const cu = await currentUser();
-    const email =
-      cu?.primaryEmailAddress?.emailAddress ?? `${userId}@users.kasacart.local`;
-    user = await prisma.user.create({
-      data: {
-        clerkUserId: userId,
-        email,
-        fullName: cu?.fullName ?? null,
-        avatarUrl: cu?.imageUrl ?? null,
-      },
-    });
-  }
+  // 1. The user is created at sign-in by the NextAuth jwt callback, so it
+  //    should exist. Treat a missing row as an invalid session.
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+  if (!user) throw ApiError.unauthorized();
 
   // 2. Ensure the seller has a store (one per seller today). New stores come
   //    with a free subscription and default notification preferences.
