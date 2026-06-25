@@ -14,6 +14,7 @@
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { ApiError } from "./http";
+import { Prisma } from "@/generated/prisma/client";
 import type { Store, User } from "@/generated/prisma/client";
 
 /** "Adwoa Owusu" / "ama@x.com" → "adwoa-owusu" / "ama". */
@@ -54,21 +55,32 @@ export async function requireStore(): Promise<CurrentStore> {
   const user = await prisma.user.findUnique({ where: { id: userId } });
   if (!user) throw ApiError.unauthorized();
 
-  // 2. Ensure the seller has a store (one per seller today). New stores come
-  //    with a free subscription and default notification preferences.
-  let store = await prisma.store.findFirst({ where: { ownerId: user.id } });
+  // 2. Ensure the seller has a store. `owner_id` is unique (one store per
+  //    seller), so this is a deterministic lookup — GET and PATCH always resolve
+  //    the same row. On first request we create it (with a free subscription and
+  //    default notification preferences).
+  let store = await prisma.store.findUnique({ where: { ownerId: user.id } });
   if (!store) {
     const handleBase = slugify(user.fullName ?? user.email);
     const handle = await uniqueHandle(handleBase);
-    store = await prisma.store.create({
-      data: {
-        ownerId: user.id,
-        name: user.fullName ? `${user.fullName}'s store` : "My store",
-        handle,
-        subscription: { create: {} },
-        notificationPreferences: { create: {} },
-      },
-    });
+    try {
+      store = await prisma.store.create({
+        data: {
+          ownerId: user.id,
+          name: user.fullName ? `${user.fullName}'s store` : "My store",
+          handle,
+          subscription: { create: {} },
+          notificationPreferences: { create: {} },
+        },
+      });
+    } catch (err) {
+      // A concurrent first request may have created it (race). The owner_id
+      // unique constraint turns the loser into P2002 — just re-read the winner.
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+        store = await prisma.store.findUnique({ where: { ownerId: user.id } });
+      }
+      if (!store) throw err;
+    }
   }
 
   return { userId, user, store };

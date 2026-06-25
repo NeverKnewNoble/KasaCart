@@ -25,6 +25,21 @@ export function optStr(body: Body, key: string): string | undefined {
   return v.trim();
 }
 
+/**
+ * Tri-state optional string: distinguishes "clear this field" from "leave it".
+ *   absent / undefined → undefined  (don't touch the column)
+ *   null / ""          → null       (clear the column)
+ *   string             → trimmed value
+ * Use for nullable columns the UI can explicitly empty (e.g. logoUrl, bannerUrl).
+ */
+export function nullableStr(body: Body, key: string): string | null | undefined {
+  if (!(key in body) || body[key] === undefined) return undefined;
+  const v = body[key];
+  if (v === null || v === "") return null;
+  if (typeof v !== "string") throw ApiError.badRequest(`"${key}" must be a string or null`);
+  return v.trim();
+}
+
 /** Required integer (optionally bounded). */
 export function int(body: Body, key: string, opts: { min?: number; max?: number } = {}): number {
   const v = body[key];

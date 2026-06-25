@@ -57,7 +57,7 @@ export default function DashboardPage() {
         {
           label: "Awaiting fulfilment",
           value: String(data.kpis.awaitingFulfilment),
-          sub: "to pack & deliver",
+          rub: "to pack & deliver",
           icon: Clock,
         },
         {

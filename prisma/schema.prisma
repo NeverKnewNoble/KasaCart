@@ -117,7 +117,8 @@ model User {
 /// A seller's storefront + brand. `handle` powers /store/<handle>.
 model Store {
   id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  ownerId       String   @map("owner_id") @db.Uuid
+  // One store per seller — unique also serves as the lookup index for owner_id.
+  ownerId       String   @unique @map("owner_id") @db.Uuid
   name          String
   handle        String   @unique @db.Citext
   tagline       String?
@@ -141,7 +142,6 @@ model Store {
   customers               Customer[]
   orders                  Order[]
 
-  @@index([ownerId])
   @@map("stores")
 }
 

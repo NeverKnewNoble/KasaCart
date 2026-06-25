@@ -9,7 +9,7 @@
  */
 import { handle, ok, readJson } from "@/lib/api/http";
 import { requireStore } from "@/lib/api/store";
-import { optStr, optBool, optHexColor } from "@/lib/api/validate";
+import { optStr, optBool, optHexColor, nullableStr } from "@/lib/api/validate";
 import { prisma } from "@/lib/prisma";
 
 export const runtime = "nodejs";
@@ -31,8 +31,9 @@ export const PATCH = handle(async (req) => {
     handle: rawHandle?.toLowerCase().replace(/[^a-z0-9-]/g, ""),
     tagline: optStr(body, "tagline"),
     accentColor: optHexColor(body, "accentColor"),
-    logoUrl: optStr(body, "logoUrl"),
-    bannerUrl: optStr(body, "bannerUrl"),
+    // Nullable so "Remove" actually clears the column (optStr would skip it).
+    logoUrl: nullableStr(body, "logoUrl"),
+    bannerUrl: nullableStr(body, "bannerUrl"),
     whatsappPhone: optStr(body, "whatsappPhone"),
     supportPhone: optStr(body, "supportPhone"),
     location: optStr(body, "location"),

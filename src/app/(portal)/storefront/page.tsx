@@ -7,7 +7,7 @@ import StorefrontSkeleton from "@/components/ui_components/StorefrontSkeleton";
 import { storefrontThemes as themes, previewProducts } from "@/utils/SampleDate";
 import { buildStoreUrl, storeDisplayUrl, useCurrentHost } from "@/utils/domain";
 import Storefront from "@/services/storefront";
-import { toastResult } from "@/utils/notify";
+import { resizeImage, LOGO_RESIZE, BANNER_RESIZE } from "@/utils/image";
 import { toast } from "sonner";
 import type { StoreBrand } from "@/types/storefront"
 
@@ -22,6 +22,8 @@ export default function StorefrontPage() {
   const [copied, setCopied] = useState(false);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [uploadingBanner, setUploadingBanner] = useState(false);
 
   // Load the seller's store into the form.
   useEffect(() => {
@@ -51,11 +53,13 @@ export default function StorefrontPage() {
       tagline,
       handle,
       accentColor: accent,
-      logoUrl: logo ?? undefined,
-      bannerUrl: banner ?? undefined,
+      // Send null (not undefined) so a removed image is actually cleared.
+      logoUrl: logo,
+      bannerUrl: banner,
     });
     setSaving(false);
-    toastResult(res, "Storefront saved");
+    // Failure messages (taken handle, network) are toasted inside the service.
+    if (res) toast.success("Storefront saved");
   };
 
   const fileInput = useRef<HTMLInputElement>(null);
@@ -79,20 +83,36 @@ export default function StorefrontPage() {
     }
   };
 
-  const handleLogo = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Pick an image → downscale in the browser → upload to Blob → keep the URL.
+  // The URL is persisted to the store on "Save changes".
+  const handleLogo = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
+    e.target.value = ""; // allow re-selecting the same file
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => setLogo(typeof reader.result === "string" ? reader.result : null);
-    reader.readAsDataURL(file);
+    setUploadingLogo(true);
+    try {
+      const resized = await resizeImage(file, LOGO_RESIZE);
+      const url = await Storefront.uploadImage(resized, "logo");
+      if (url) setLogo(url);
+      else toast.error("Couldn't upload the logo. Please try again.");
+    } finally {
+      setUploadingLogo(false);
+    }
   };
 
-  const handleBanner = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleBanner = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
+    e.target.value = "";
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => setBanner(typeof reader.result === "string" ? reader.result : null);
-    reader.readAsDataURL(file);
+    setUploadingBanner(true);
+    try {
+      const resized = await resizeImage(file, BANNER_RESIZE);
+      const url = await Storefront.uploadImage(resized, "banner");
+      if (url) setBanner(url);
+      else toast.error("Couldn't upload the banner. Please try again.");
+    } finally {
+      setUploadingBanner(false);
+    }
   };
 
 
@@ -240,10 +260,11 @@ export default function StorefrontPage() {
               <button
                 type="button"
                 onClick={() => fileInput.current?.click()}
-                className="inline-flex items-center gap-2 rounded-xl border border-dashed border-brand/25 px-4 py-2.5 text-sm font-semibold text-fg/65 transition-colors hover:border-brand/40 hover:text-brand"
+                disabled={uploadingLogo}
+                className="inline-flex items-center gap-2 rounded-xl border border-dashed border-brand/25 px-4 py-2.5 text-sm font-semibold text-fg/65 transition-colors hover:border-brand/40 hover:text-brand disabled:opacity-50"
               >
                 <Upload className="h-4 w-4" strokeWidth={1.8} />
-                {logo ? "Replace logo" : "Upload logo"}
+                {uploadingLogo ? "Uploading…" : logo ? "Replace logo" : "Upload logo"}
               </button>
               {logo && (
                 <button
@@ -274,9 +295,10 @@ export default function StorefrontPage() {
                   <button
                     type="button"
                     onClick={() => bannerInput.current?.click()}
-                    className="rounded-lg bg-white/90 px-3 py-1.5 text-xs font-semibold text-fg/80 shadow-sm transition-colors hover:text-brand"
+                    disabled={uploadingBanner}
+                    className="rounded-lg bg-white/90 px-3 py-1.5 text-xs font-semibold text-fg/80 shadow-sm transition-colors hover:text-brand disabled:opacity-50"
                   >
-                    Replace
+                    {uploadingBanner ? "Uploading…" : "Replace"}
                   </button>
                   <button
                     type="button"
@@ -291,10 +313,11 @@ export default function StorefrontPage() {
               <button
                 type="button"
                 onClick={() => bannerInput.current?.click()}
-                className="flex h-32 w-full flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-brand/20 bg-raised/40 text-fg/55 transition-colors hover:border-brand/40 hover:text-brand"
+                disabled={uploadingBanner}
+                className="flex h-32 w-full flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-brand/20 bg-raised/40 text-fg/55 transition-colors hover:border-brand/40 hover:text-brand disabled:opacity-50"
               >
                 <ImageIcon className="h-6 w-6" strokeWidth={1.6} />
-                <span className="text-sm font-semibold">Upload a banner</span>
+                <span className="text-sm font-semibold">{uploadingBanner ? "Uploading…" : "Upload a banner"}</span>
                 <span className="text-xs text-fg/45">Wide image — shown at the top of your store</span>
               </button>
             )}
@@ -374,6 +397,10 @@ export default function StorefrontPage() {
     </div>
   );
 }
+
+
+
+
 
 /* ------------------------------------------------------------------ */
 /* Shared store render — used inside both the laptop and mobile frames  */

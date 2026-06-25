@@ -70,8 +70,8 @@ export type StoreUpdate = {
   handle?: string;
   tagline?: string;
   accentColor?: string;
-  logoUrl?: string;
-  bannerUrl?: string;
+  logoUrl?: string | null;
+  bannerUrl?: string | null;
   whatsappPhone?: string;
   supportPhone?: string;
   location?: string;

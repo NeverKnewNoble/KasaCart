@@ -37,7 +37,7 @@ export default function CustomersPage() {
       { label: "Repeat buyers", value: String(rows.filter((c) => c.orderCount > 1).length), icon: Repeat },
       { label: "New this month", value: String(newThisMonth), icon: UserPlus },
     ];
-  }, [rows]);
+  }, [rows]); 
 
   const customers = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -46,6 +46,7 @@ export default function CustomersPage() {
       .filter((c) => !q || c.name.toLowerCase().includes(q) || c.contact.toLowerCase().includes(q));
   }, [rows, search]);
 
+  
   return (
     <div className="space-y-6">
       <PageHeader
@@ -66,7 +67,7 @@ export default function CustomersPage() {
             </div>
           </div>
         ))}
-      </div>
+      </div> 
 
       {/* search */}
       <div className="relative sm:max-w-sm">
