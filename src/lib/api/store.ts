@@ -3,7 +3,7 @@
  *
  * KasaCart is multi-tenant: every dashboard API is scoped to exactly one store.
  * The signed-in user is created at sign-in by the NextAuth `jwt` callback
- * (see src/auth.ts); this helper looks them up and **bootstraps** the `stores`
+ * (see src/lib/auth.ts); this helper looks them up and **bootstraps** the `stores`
  * (+ `subscriptions`, `notification_preferences`) rows on first call — the
  * "upsert on first login" the schema doc calls for (docs/database-schema.md §4.1 / §8).
  *
@@ -11,7 +11,7 @@
  *   const { store } = await requireStore();
  *   // ...then filter all queries by `store.id`.
  */
-import { auth } from "@/auth";
+import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { ApiError } from "./http";
 import { Prisma } from "@/generated/prisma/client";

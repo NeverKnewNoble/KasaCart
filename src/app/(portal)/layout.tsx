@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { auth } from "@/auth";
+import { auth } from "@/lib/auth";
 import PortalShell from "@/components/ui_components/portal/PortalShell";
 
 export default async function PortalLayout({
