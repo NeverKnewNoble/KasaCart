@@ -3,6 +3,7 @@ import { Bricolage_Grotesque, Hanken_Grotesk, Geist_Mono } from "next/font/googl
 import { Toaster } from "@/components/ui/sonner";
 import AuthSessionProvider from "@/components/providers/SessionProvider";
 import "./globals.css";
+import QueryProvider from "@/components/providers/QueryProvider";
 
 const display = Bricolage_Grotesque({
   variable: "--font-display",
@@ -38,7 +39,9 @@ export default function RootLayout({
       className={`${display.variable} ${body.variable} ${mono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col bg-background text-foreground">
-        <AuthSessionProvider>{children}</AuthSessionProvider>
+        <AuthSessionProvider>
+          <QueryProvider> { children } </QueryProvider>
+        </AuthSessionProvider>
         <Toaster />
       </body>
     </html>

@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Fragment } from "react";
 import {
@@ -21,36 +20,25 @@ import { formatCedis } from "@/utils/productUtils";
 import { toast } from "sonner";
 import type { DashboardData } from "@/types/dashboard";
 import type { OrderStatus } from "@/types/api";
+import { STAGES, ROW_COLORS, BADGE} from "@/utils/dashboard"
+import { useQuery } from "@tanstack/react-query";
 
-// Pipeline stages in fulfilment order, with display labels + colours.
-const STAGES: { status: OrderStatus; label: string; color: string }[] = [
-  { status: "pending", label: "New", color: "#f59e0b" },
-  { status: "confirmed", label: "Confirmed", color: "#1d4ed8" },
-  { status: "packed", label: "Packed", color: "#7c3aed" },
-  { status: "delivered", label: "Delivered", color: "#059669" },
-];
-// Dashboard "Recent orders" badge label (pending → "New").
-const BADGE: Record<OrderStatus, "New" | "Confirmed" | "Packed" | "Delivered"> = {
-  pending: "New",
-  confirmed: "Confirmed",
-  packed: "Packed",
-  delivered: "Delivered",
-  cancelled: "New",
-};
-const ROW_COLORS = ["#1d4ed8", "#0ea5e9", "#7c3aed", "#db2777", "#059669"];
 
 export default function DashboardPage() {
-  const [data, setData] = useState<DashboardData | null>(null);
-  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    (async () => {
-      const d = await Dashboard.getDashboard();
-      if (!d) toast.error("Couldn't load your dashboard.");
-      else setData(d);
-      setLoading(false);
-    })();
-  }, []);
+
+//  ** QUERY TO CALL DASHBOARD DATA
+  const { data, isLoading: loading } = useQuery<DashboardData | null>({
+    queryKey: ["dashboard"],
+    queryFn: async () => {
+      const list = await Dashboard.getDashboard();
+      if (!list) {
+        toast.error("Couldn't load your dashboard.");
+        return null;
+      }
+      return list;
+    },
+  });
 
   const kpis = data
     ? [
@@ -72,6 +60,12 @@ export default function DashboardPage() {
     data?.pipeline.find((p) => p.status === s)?.count ?? 0;
   const topMaxUnits = Math.max(1, ...(data?.topProducts ?? []).map((p) => p.unitsSold));
 
+
+
+
+
+
+  
   return (
     <div className="space-y-6">
       <div>

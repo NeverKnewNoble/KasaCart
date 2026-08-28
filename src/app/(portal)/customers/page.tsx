@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Mail, Phone, Users, Repeat, UserPlus } from "lucide-react";
 import PageHeader from "@/components/ui_components/portal/PageHeader";
 import EmptyState from "@/components/ui_components/EmptyState";
@@ -9,23 +9,37 @@ import Customers from "@/services/customers";
 import { initials } from "@/utils/general";
 import { customerToRow } from "@/utils/mappers";
 import { toast } from "sonner";
-import type { CustomerWithStats } from "@/types/customers";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import type { CustomerWithStats, CustomerDTO } from "@/types/customers";
+
+
+
 
 export default function CustomersPage() {
-  const [rows, setRows] = useState<CustomerWithStats[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient()
   const [search, setSearch] = useState("");
 
-  useEffect(() => {
-    (async () => {
+  // ** QUERY CLIENT FOR REFRESHING DATA !!!!!!!!!!!!!!!!!!!!!!
+  const { data: rows = [], isLoading: loading } = useQuery({
+    queryKey: ["customers"],
+    queryFn: async () => {
       const list = await Customers.listCustomers();
-      if (!list) toast.error("Couldn't load your customers.");
-      else setRows(list);
-      setLoading(false);
-    })();
-  }, []);
+      if (!list) {
+        toast.error("Couldn't load your customers.");
+        return [] as CustomerWithStats[];
+      }
+      // Keep raw DTOs: the summary tiles below need createdAt/orderCount, which
+      // customerToRow drops. Rows are derived in the `customers` memo instead.
+      return list;
+    }
+  })
 
-  // Summary tiles computed from the loaded data.
+  // ?? reuslt as useEffect to notice changes on refresh
+  const refresh = () => queryClient.invalidateQueries({ queryKey: ["customers"] });
+
+
+
+  // *** Summary tiles computed from the loaded data.
   const summary = useMemo(() => {
     const now = new Date();
     const newThisMonth = rows.filter((c) => {
@@ -47,6 +61,12 @@ export default function CustomersPage() {
   }, [rows, search]);
 
   
+
+
+
+
+
+
   return (
     <div className="space-y-6">
       <PageHeader

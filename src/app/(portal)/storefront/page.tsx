@@ -11,6 +11,7 @@ import { resizeImage, LOGO_RESIZE, BANNER_RESIZE } from "@/utils/image";
 import { toast } from "sonner";
 import type { StoreBrand } from "@/types/storefront"
 import { StorePreview } from "@/components/ui_components/StorePreview"
+import { useQuery } from "@tanstack/react-query";
 
 export default function StorefrontPage() {
   const [name, setName] = useState("");
@@ -21,31 +22,47 @@ export default function StorefrontPage() {
   const [banner, setBanner] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [loading, setLoading] = useState(true);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [uploadingBanner, setUploadingBanner] = useState(false);
+  const fileInput = useRef<HTMLInputElement>(null);
+  const bannerInput = useRef<HTMLInputElement>(null);
+  // Links are built against the host we're actually running on (localhost,
+  // vercel.app or a real domain later) — see @/utils/domain.
+  const host = useCurrentHost();
+  const storeUrl = buildStoreUrl(handle, host);
+  const storeLabel = storeDisplayUrl(handle, host);
+  const brand: StoreBrand = { name, tagline, accent, logo, banner }; 
 
-  // Load the seller's store into the form.
-  useEffect(() => {
-    (async () => {
-      try {
-        const store = await Storefront.getStore();
-        if (!store) {
-          toast.error("Couldn't load your store.");
-          return;
-        }
-        setName(store.name);
-        setTagline(store.tagline ?? "");
-        setHandle(store.handle);
-        setAccent(store.accentColor);
-        setLogo(store.logoUrl);
-        setBanner(store.bannerUrl);
-      } finally {
-        setLoading(false);
+
+  //** */ Load the seller's store via React Query.
+  const { data, isLoading: loading } = useQuery({
+    queryKey: ["storefront"],
+    queryFn: async () => {
+      const store = await Storefront.getStore();
+      if (!store) {
+        toast.error("Couldn't load your store.");
+        return null;
       }
-    })();
-  }, []);
+      return store;
+    },
+  });
 
+  // Sync the loaded store into the form.
+  useEffect(() => {
+    if (!data) return;
+    setName(data.name);
+    setTagline(data.tagline ?? "");
+    setHandle(data.handle);
+    setAccent(data.accentColor);
+    setLogo(data.logoUrl);
+    setBanner(data.bannerUrl);
+  }, [data]);
+
+
+
+  // ** OPERATIONAL FUNCTIONS
+  if (loading) return <StorefrontSkeleton />;
+  
   const saveStore = async () => {
     setSaving(true);
     const res = await Storefront.updateStore({
@@ -60,17 +77,6 @@ export default function StorefrontPage() {
     // Failure messages (taken handle, network) are toasted inside the service.
     if (res) toast.success("Storefront saved");
   };
-
-  const fileInput = useRef<HTMLInputElement>(null);
-  const bannerInput = useRef<HTMLInputElement>(null);
-
-  // Links are built against the host we're actually running on (localhost,
-  // *.vercel.app or a real domain later) — see @/utils/domain.
-  const host = useCurrentHost();
-  const storeUrl = buildStoreUrl(handle, host);
-  const storeLabel = storeDisplayUrl(handle, host);
-
-  const brand: StoreBrand = { name, tagline, accent, logo, banner };
 
   const handleCopy = async () => {
     try {
@@ -114,7 +120,7 @@ export default function StorefrontPage() {
     }
   };
 
-  if (loading) return <StorefrontSkeleton />;
+
 
 
 

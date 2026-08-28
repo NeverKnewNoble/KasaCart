@@ -21,3 +21,28 @@ export function Toggle({ defaultOn }: { defaultOn: boolean }) {
     </label>
   );
 }
+
+
+
+/** Controlled switch (matches the look of utils/settingsUtils Toggle). */
+export function Switch({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <label className="relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center">
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+        className="peer sr-only"
+      />
+      <span className="h-6 w-11 rounded-full bg-fg/15 transition-colors peer-checked:bg-brand" />
+      <span className="pointer-events-none absolute left-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform peer-checked:translate-x-5" />
+    </label>
+  );
+}
+
+export const NOTIF_FIELDS = [
+  { key: "newOrder", label: "New order placed", desc: "Get notified the moment a customer checks out" },
+  { key: "lowStock", label: "Low stock alerts", desc: "When a product drops below your threshold" },
+  { key: "newCustomer", label: "New customer", desc: "When someone orders from your store for the first time" },
+  { key: "weeklySummary", label: "Weekly summary", desc: "A recap of your sales every Monday" },
+] as const;

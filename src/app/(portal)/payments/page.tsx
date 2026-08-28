@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Check, Sparkles, Receipt } from "lucide-react";
 import PageHeader from "@/components/ui_components/portal/PageHeader";
 import Payments from "@/services/payments";
@@ -8,22 +8,26 @@ import { freeFeatures, proFeatures } from "@/utils/SampleDate";
 import { toCedis, shortDate } from "@/utils/mappers";
 import { formatCedis } from "@/utils/productUtils";
 import { toast } from "sonner";
-import type { BillingData } from "@/types/payments";
 
 export default function PaymentsPage() {
-  const [billing, setBilling] = useState<BillingData | null>(null);
+  
+  // ** QUERY TO CALL BILLING INFORMATION
+  const { data: billing } = useQuery({
+    queryKey: ["billing"],
+    queryFn: async () => {
+      const list = await Payments.getBilling();
+      if (!list) toast.error("Couldn't load your billing.");
+      return list;
+    },
+  });
 
-  useEffect(() => {
-    (async () => {
-      const b = await Payments.getBilling();
-      if (!b) toast.error("Couldn't load your billing.");
-      else setBilling(b);
-    })();
-  }, []);
-
+  // ?? Declarations
   const plan = billing?.subscription.plan ?? "free";
   const isPro = plan === "pro";
   const invoices = billing?.invoices ?? [];
+
+
+
 
   return (
     <div className="space-y-6">

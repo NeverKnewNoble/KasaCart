@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Plus, Package, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
 import PageHeader from "@/components/ui_components/portal/PageHeader";
 import EmptyState from "@/components/ui_components/EmptyState";
@@ -14,12 +14,13 @@ import { productToRow, productToInput, type ProductRow } from "@/utils/mappers";
 import { toastResult } from "@/utils/notify";
 import { toast } from "sonner";
 import type { Product } from "@/types/products";
-import type { CategoryDTO } from "@/types/products";
+import type { CategoryDTO, ProductInput } from "@/types/products";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+
+
 
 export default function ProductsPage() {
-  const [products, setProducts] = useState<ProductRow[]>([]);
-  const [categories, setCategories] = useState<CategoryDTO[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
   const [mode, setMode] = useState<"create" | "edit">("create");
@@ -27,70 +28,121 @@ export default function ProductsPage() {
   const [menu, setMenu] = useState<{ id: string; x: number; y: number } | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<ProductRow | null>(null);
 
-  /** Load (or reload) the catalogue from the API. */
-  const refresh = async () => {
-    const list = await Products.listProducts();
-    if (!list) {
-      toast.error("Couldn't load your products.");
-      return;
-    }
-    setProducts(list.map(productToRow));
-  };
 
-  useEffect(() => {
-    (async () => {
-      await Promise.all([
-        refresh(),
-        Products.listCategories().then((c) => c && setCategories(c)),
-      ]);
-      setLoading(false);
-    })();
-  }, []);
+  // *** API FETCH QUERY !!!!!!!!!!!!!!!!!!!!!!
+  // ?? `useQuery` fetches products and owns the loading/error state directly —
+  const { data: products = [], isLoading: loading } = useQuery({
+    queryKey: ["products"],
+    queryFn: async () => {
+      const list = await Products.listProducts();
+      if (!list) {
+        toast.error("Couldn't load your products.");
+        return [] as ProductRow[];
+      }
+      return list.map(productToRow);
+    },
+  });
 
+  // ?? `useQuery` fetches categories and owns the loading/error state directly —
+  const { data: categories = [] } = useQuery({
+    queryKey: ["categories"],
+    queryFn: async () => {
+      const list = await Products.listCategories();
+      if (!list) {
+        toast.error("Couldn't load your categories.");
+        return [] as CategoryDTO[];
+      }
+      return list;
+    },
+  });
+
+  // *** MUTATIONS — each invalidates its query on success so the grid refetches.
+  // Services return the entity on success / undefined on failure, so `toastResult`
+  // reports the outcome and we only invalidate when it actually succeeded.
+  const createCategory = useMutation({
+    mutationFn: (name: string) => Products.createCategory({ name }),
+    onSuccess: (created) => {
+      if (created) queryClient.invalidateQueries({ queryKey: ["categories"] });
+    },
+  });
+
+  const createProduct = useMutation({
+    mutationFn: (input: ProductInput) => Products.createProduct(input),
+    onSuccess: (res) => {
+      if (toastResult(res, "Product created")) queryClient.invalidateQueries({ queryKey: ["products"] });
+    },
+  });
+
+  const updateProduct = useMutation({
+    mutationFn: ({ id, input }: { id: string; input: ProductInput }) =>
+      Products.updateProduct(id, input),
+    onSuccess: (res) => {
+      if (toastResult(res, "Product updated")) queryClient.invalidateQueries({ queryKey: ["products"] });
+    },
+  });
+
+  const deleteProduct = useMutation({
+    mutationFn: (id: string) => Products.deleteProduct(id),
+    onSuccess: (res) => {
+      if (toastResult(res, "Product deleted")) queryClient.invalidateQueries({ queryKey: ["products"] });
+    },
+  });
+
+
+  // **** MODAL FUNCTIONS !!!!!!!!!!!!!!!!!!!!!!!!!!
   const visible = searchByPrefix(products, search, (p) => p.name);
 
+  // ?? `openCreate` opens the modal in create mode, clearing any editing state.
   const openCreate = () => {
     setEditing(null);
     setMode("create");
     setModalOpen(true);
   };
 
+  // ?? `openEdit` opens the modal in edit mode, setting the editing state to the selected product.
   const openEdit = (p: ProductRow) => {
     setEditing(p);
     setMode("edit");
     setModalOpen(true);
   };
 
-  /** Resolve a category name → id, creating the category on the fly if new. */
+  // ?? `ensureCategory` checks if a category exists, creates it if not, and returns the category ID.
   const ensureCategory = async (name?: string): Promise<string | undefined> => {
     if (!name) return undefined;
     const existing = categories.find((c) => c.name.toLowerCase() === name.toLowerCase());
     if (existing) return existing.id;
-    const created = await Products.createCategory({ name });
-    if (created) setCategories((cs) => [...cs, created]);
+    const created = await createCategory.mutateAsync(name);
     return created?.id;
   };
 
+  // ?? `handleSubmit` is called by the modal when the user submits the form.
   const handleSubmit = async (data: Product) => {
     const categoryId = await ensureCategory(data.category);
     const input = productToInput(data, categoryId);
     if (mode === "edit" && editing) {
-      const res = await Products.updateProduct(editing.dbId, input);
-      if (toastResult(res, "Product updated")) refresh();
+      updateProduct.mutate({ id: editing.dbId, input });
     } else {
-      const res = await Products.createProduct(input);
-      if (toastResult(res, "Product created")) refresh();
+      createProduct.mutate(input);
     }
   };
 
-  const confirmDelete = async () => {
+  // ?? `confirmDelete` is called by the delete confirmation modal when the user confirms deletion.
+  const confirmDelete = () => {
     if (!deleteTarget) return;
-    const target = deleteTarget;
+    deleteProduct.mutate(deleteTarget.dbId);
     setDeleteTarget(null);
-    const res = await Products.deleteProduct(target.dbId);
-    if (toastResult(res, "Product deleted")) refresh();
   };
 
+
+
+
+
+
+
+
+
+
+  
   return (
     <div className="space-y-6">
       <PageHeader

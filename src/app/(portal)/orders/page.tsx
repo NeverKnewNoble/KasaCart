@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import {
   SlidersHorizontal,
   Download,
@@ -24,10 +24,11 @@ import { filterOrders, countActiveFilters, emptyOrderFilters } from "@/utils/ord
 import { orderToRow, labelToPayment, type OrderRow } from "@/utils/mappers";
 import { toastResult } from "@/utils/notify";
 import { toast } from "sonner";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+
 
 export default function OrdersPage() {
-  const [orders, setOrders] = useState<OrderRow[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [modalOpen, setModalOpen] = useState(false);
   const [mode, setMode] = useState<"create" | "edit">("create");
   const [editing, setEditing] = useState<OrderRow | null>(null);
@@ -37,25 +38,51 @@ export default function OrdersPage() {
   const [filterOpen, setFilterOpen] = useState(false);
   const [filters, setFilters] = useState<OrderFilters>(emptyOrderFilters);
 
-  const refresh = async () => {
-    const list = await Orders.listOrders();
-    if (!list) {
-      toast.error("Couldn't load your orders.");
-      return;
-    }
-    setOrders(list.map(orderToRow));
-  };
 
-  useEffect(() => {
-    (async () => {
-      await refresh();
-      setLoading(false);
-    })();
-  }, []);
+  // ** QUERY CLIENT FOR REFRESHING DATA !!!!!!!!!!!!!!!!!!!!!!
+  const { data: orders = [] , isLoading: loading } = useQuery({
+    queryKey: ["orders"],
+    queryFn: async () => {
+      const list = await Orders.listOrders();
+      if(!list) {
+        toast.error("Couldn't load your orders.");
+        return [] as OrderRow[];
+      }
+      return list.map(orderToRow);
+    }
+  })
 
   const visibleOrders = filterOrders(orders, filters, search) as OrderRow[];
   const activeFilterCount = countActiveFilters(filters);
 
+
+  // *** MUTATIONS — each invalidates the orders query on success so the list refetches.
+  // Services return the entity on success / undefined on failure, so `toastResult`
+  // reports the outcome and we only invalidate when it actually succeeded.
+  const createOrder = useMutation({
+    mutationFn: (payload: OrderInput) => Orders.createOrder(payload),
+    onSuccess: (res) => {
+      if (toastResult(res, "Order created")) queryClient.invalidateQueries({ queryKey: ["orders"] });
+    },
+  });
+
+  const updateOrder = useMutation({
+    mutationFn: ({ id, update }: { id: string; update: OrderUpdate }) =>
+      Orders.updateOrder(id, update),
+    onSuccess: (res) => {
+      if (toastResult(res, "Order updated")) queryClient.invalidateQueries({ queryKey: ["orders"] });
+    },
+  });
+
+  const deleteOrder = useMutation({
+    mutationFn: (id: string) => Orders.deleteOrder(id),
+    onSuccess: (res) => {
+      if (toastResult(res, "Order deleted")) queryClient.invalidateQueries({ queryKey: ["orders"] });
+    },
+  });
+
+
+  // *** FUNCTIONS FOR MODALS AND ACTIONS !!!!!!!!!!!!!!!!!!!!!!
   const openCreate = () => {
     setEditing(null);
     setMode("create");
@@ -68,7 +95,7 @@ export default function OrdersPage() {
     setModalOpen(true);
   };
 
-  const handleSubmit = async (_data: Order, payload: OrderInput) => {
+  const handleSubmit = (_data: Order, payload: OrderInput) => {
     if (mode === "edit" && editing) {
       // The API doesn't edit line items — update the order's fields only.
       const update: OrderUpdate = {
@@ -84,21 +111,23 @@ export default function OrdersPage() {
         deliveryRegion: payload.deliveryRegion,
         notes: payload.notes,
       };
-      const res = await Orders.updateOrder(editing.dbId, update);
-      if (toastResult(res, "Order updated")) refresh();
+      updateOrder.mutate({ id: editing.dbId, update });
     } else {
-      const res = await Orders.createOrder(payload);
-      if (toastResult(res, "Order created")) refresh();
+      createOrder.mutate(payload);
     }
   };
 
-  const confirmDelete = async () => {
+  const confirmDelete = () => {
     if (!deleteTarget) return;
-    const target = deleteTarget;
+    deleteOrder.mutate(deleteTarget.dbId);
     setDeleteTarget(null);
-    const res = await Orders.deleteOrder(target.dbId);
-    if (toastResult(res, "Order deleted")) refresh();
   };
+
+
+
+
+
+
 
   return (
     <div className="space-y-6">
